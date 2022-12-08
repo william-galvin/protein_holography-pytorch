@@ -6,8 +6,8 @@ import e3nn.nn as e3nn_nn
 import functools
 import sys, os
 
-from .linearity import linearity
-from .nonlinearity import nonlinearity
+from .linearity import SO3_linearity
+from .nonlinearity import TP_nonlinearity
 from .normalization import layer_norm_nonlinearity, signal_norm, batch_norm, magnitudes_norm
 
 from typing import *
@@ -19,7 +19,7 @@ NONLIN_TO_ACTIVATION_MODULES = {
     'identity': 'torch.nn.Identity()'
 }
 
-class CGNetBlock(torch.nn.Module):
+class CGBlock(torch.nn.Module):
     def __init__(self,
                  irreps_in: o3.Irreps,
                  irreps_hidden: o3.Irreps,
@@ -55,7 +55,7 @@ class CGNetBlock(torch.nn.Module):
 
         layers = []
         if linearity_first:
-            layers.append(linearity(irreps_in, irreps_hidden, weights_initializer=weights_initializer, scale_for_weights_init=init_scale))
+            layers.append(SO3_linearity(irreps_in, irreps_hidden, weights_initializer=weights_initializer, scale_for_weights_init=init_scale))
 
             # with linearity first, the use of batch norm and other normalization techniques are mutually exclusive
             if self.use_batch_norm:
@@ -65,7 +65,7 @@ class CGNetBlock(torch.nn.Module):
             elif norm_type == 'signal':
                 layers.append(signal_norm(irreps_in, normalization=normalization, affine=norm_affine, balanced=norm_balanced))
 
-            layers.append(nonlinearity(irreps_hidden, w3j_matrices, filter_ir_out=filter_ir_out, ls_rule=ls_nonlin_rule, channel_rule=ch_nonlin_rule, filter_symmetric=filter_symmetric))
+            layers.append(TP_nonlinearity(irreps_hidden, w3j_matrices, filter_ir_out=filter_ir_out, ls_rule=ls_nonlin_rule, channel_rule=ch_nonlin_rule, filter_symmetric=filter_symmetric))
         
         else:
             if self.use_batch_norm:
@@ -86,7 +86,7 @@ class CGNetBlock(torch.nn.Module):
                 elif norm_type == 'layer':
                     layers.append(batch_norm(irreps_in, layer=True, affine=norm_affine, normalization=normalization))
 
-            layers.append(nonlinearity(irreps_in, w3j_matrices, filter_ir_out=filter_ir_out, ls_rule=ls_nonlin_rule, channel_rule=ch_nonlin_rule, filter_symmetric=filter_symmetric))
+            layers.append(TP_nonlinearity(irreps_in, w3j_matrices, filter_ir_out=filter_ir_out, ls_rule=ls_nonlin_rule, channel_rule=ch_nonlin_rule, filter_symmetric=filter_symmetric))
             
             if norm_location == 'between':
                 if norm_type == 'layer_nonlin':
@@ -100,7 +100,7 @@ class CGNetBlock(torch.nn.Module):
                 elif norm_type == 'layer':
                     layers.append(batch_norm(layers[-1].irreps_out.simplify(), layer=True, affine=norm_affine, normalization=normalization))
 
-            layers.append(linearity(layers[-1].irreps_out.simplify(), irreps_hidden, weights_initializer=weights_initializer, scale_for_weights_init=init_scale))
+            layers.append(SO3_linearity(layers[-1].irreps_out.simplify(), irreps_hidden, weights_initializer=weights_initializer, scale_for_weights_init=init_scale))
 
             if norm_location == 'last':
                 if norm_type == 'layer_nonlin':

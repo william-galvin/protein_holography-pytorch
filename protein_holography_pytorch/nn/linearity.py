@@ -7,7 +7,7 @@ from e3nn import o3
 from typing import *
 
 
-class linearity(torch.nn.Module):
+class SO3_linearity(torch.nn.Module):
     def __init__(self,
                  irreps_in: o3.Irreps,
                  irreps_out: o3.Irreps,

@@ -1,23 +1,14 @@
 
+import sys, os
 import numpy as np
 import torch
-from torch import nn
 import e3nn
 from e3nn import o3
-
-from .linearity import linearity
-from .nonlinearity import nonlinearity
-from .normalization import signal_norm
-from .blocks import CGNetBlock, FFNN_block
+import nn
+from utils import make_vec
 
 from torch import Tensor
-from typing import Optional, List, Dict
-
-import sys, os
-
-sys.path.append('..')
-from utils.equivariance_tests import rotate_signal_batch_fibers, get_wigner_D_fibers_from_rot_matrices, put_dict_on_device, take_dict_down_from_device, get_wigner_D_fibers_from_rot_matrices_v2, rotate_signal_batch_fibers_v2
-from loss_functions import *
+from typing import *
 
 # MAX_FLOAT32 = torch.tensor(3e30).type(torch.float32)
 
@@ -30,14 +21,7 @@ Allow to decide, for each cg block:
 Use the same kind(s) of normalization(s) for all blocks
 '''
 
-NONLIN_TO_ACTIVATION_MODULES = {
-    'silu': 'torch.nn.SiLU()',
-    'sigmoid': 'torch.nn.Sigmoid()',
-    'relu': 'torch.nn.ReLU()',
-    'identity': 'torch.nn.Identity()'
-}
-
-class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
+class H_VAE(torch.nn.Module):
     def __init__(self,
                  irreps_in: o3.Irreps,
                  latent_dim: int,
@@ -48,8 +32,6 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
                  ch_nonlin_rule_list: List[str], # as they should appear in the encoder
                  do_initial_linear_projection: bool,
                  ch_initial_linear_projection: int,
-                 decoder_hidden_dims: List[int],
-                 decoder_nonlin: str,
                  w3j_matrices: Dict[int, Tensor],
                  device: str,
                  bottleneck_hidden_dims: Optional[List[int]] = None,
@@ -72,7 +54,6 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
         super().__init__()
 
         self.irreps_in = irreps_in
-        self.irreps_in_ls_indices = torch.cat([torch.tensor([l]).repeat(2*l+1) for l in self.irreps_in.ls])
         self.do_initial_linear_projection = do_initial_linear_projection
         self.device = device
         self.use_additive_skip_connections = use_additive_skip_connections
@@ -82,8 +63,6 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
         self.latent_dim = latent_dim
         self.do_final_signal_norm = do_final_signal_norm
         self.is_vae = is_vae
-        self.decoder_hidden_dims = decoder_hidden_dims
-        self.decoder_nonlin = decoder_nonlin
 
         assert n_cg_blocks == len(ch_size_list)
         assert lmax_list is None or n_cg_blocks == len(lmax_list)
@@ -93,7 +72,7 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
         if self.do_initial_linear_projection:
             print(irreps_in.dim, irreps_in)
             initial_irreps = (ch_initial_linear_projection*o3.Irreps.spherical_harmonics(max(irreps_in.ls), 1)).sort().irreps.simplify()
-            self.initial_linear_projection = linearity(irreps_in, initial_irreps)
+            self.initial_linear_projection = nn.SO3_linearity(irreps_in, initial_irreps)
             print(initial_irreps.dim, initial_irreps)
         else:
             print(irreps_in.dim, irreps_in)
@@ -120,7 +99,7 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
         encoder_cg_blocks = []
         for i in range(n_cg_blocks):
             temp_irreps_hidden = (ch_size_list[i]*o3.Irreps.spherical_harmonics(lmaxs_encoder[i], 1)).sort().irreps.simplify()
-            encoder_cg_blocks.append(CGNetBlock(prev_irreps,
+            encoder_cg_blocks.append(nn.CGBlock(prev_irreps,
                                                 temp_irreps_hidden,
                                                 w3j_matrices,
                                                 linearity_first=linearity_first,
@@ -146,9 +125,20 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
         final_encoder_invariants = [mul for (mul, _) in prev_irreps][0] # number of channels for l = 0
         final_encoder_l1s = [mul for (mul, _) in prev_irreps][1] # number of channels for l = 1
 
-        self.encoder_mean = torch.nn.Linear(final_encoder_invariants, latent_dim)
+        prev_dim = final_encoder_invariants
+        if bottleneck_hidden_dims is not None and len(bottleneck_hidden_dims) > 0:
+            encoder_bottleneck = []
+            for hidden_dim in bottleneck_hidden_dims:
+                encoder_bottleneck.append(torch.nn.Linear(prev_dim, hidden_dim))
+                encoder_bottleneck.append(torch.nn.ReLU())
+                prev_dim = hidden_dim
+            self.encoder_bottleneck = torch.nn.Sequential(*encoder_bottleneck)
+        else:
+            self.encoder_bottleneck = torch.nn.Identity() # for modularity purposes
+
+        self.encoder_mean = torch.nn.Linear(prev_dim, latent_dim)
         if self.is_vae:
-            self.encoder_log_var = torch.nn.Linear(final_encoder_invariants, latent_dim)
+            self.encoder_log_var = torch.nn.Linear(prev_dim, latent_dim)
 
         # component that learns the frame
         self.learn_frame = learn_frame
@@ -156,33 +146,76 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
             # take l=1 vectors (extract multiplicities) of last block and learn two l=1 vectors (x and pseudo-y direction)
             frame_learner_irreps_in = o3.Irreps('%dx1e' % final_encoder_l1s)
             frame_learner_irreps_out = o3.Irreps('2x1e')
-            self.frame_learner = linearity(frame_learner_irreps_in, frame_learner_irreps_out)
+            self.frame_learner = nn.SO3_linearity(frame_learner_irreps_in, frame_learner_irreps_out)
         
         latent_irreps = o3.Irreps('%dx0e+3x1e' % (latent_dim))
         print(latent_irreps.dim, latent_irreps)
 
+        prev_dim = latent_dim
+        if bottleneck_hidden_dims is not None and len(bottleneck_hidden_dims) > 0:
+            bottleneck_hidden_dims = bottleneck_hidden_dims[::-1] + [final_encoder_invariants]
+            decoder_bottleneck = []
+            for i, hidden_dim in enumerate(bottleneck_hidden_dims):
+                decoder_bottleneck.append(torch.nn.Linear(prev_dim, hidden_dim))
+                if i > 0: # only linear projection in first layer, to be symmetric with encoder
+                    decoder_bottleneck.append(torch.nn.ReLU())
+                prev_dim = hidden_dim
+            self.decoder_bottleneck = torch.nn.Sequential(*decoder_bottleneck)
+        else:
+            self.decoder_bottleneck = torch.nn.Linear(latent_dim, final_encoder_invariants)
 
-        ## decoder
-        self.first_decoder_projection = torch.nn.Linear(latent_dim, self.decoder_hidden_dims[0])
+        l1_frame_irreps = o3.Irreps('3x1e')
+        self.first_decoder_projection = nn.SO3_linearity(l1_frame_irreps, o3.Irreps('%dx1e' % final_encoder_l1s)) # project back to space of irreps at the end of the encoder (l1 only)
+        print(prev_irreps.dim, prev_irreps)
 
-        prev_dim = self.decoder_hidden_dims[0]
-        decoder = []
-        for h_dim in self.decoder_hidden_dims[1:]:
-            block = []
-            block.append(nn.Linear(prev_dim, h_dim))
-            block.append(eval(NONLIN_TO_ACTIVATION_MODULES[self.decoder_nonlin]))
-            decoder.append(torch.nn.Sequential(*block))
-            prev_dim = h_dim
-        self.decoder = torch.nn.ModuleList(decoder)
+        ## decoder - cg
+        decoder_cg_blocks = []
         
-        self.final_decoder_projection = torch.nn.Linear(prev_dim, self.irreps_in.dim)
+        # ch_size_list = [ch_initial_linear_projection] + ch_size_list # add channels of initial irreps
+        ch_size_list = ch_size_list[::-1][1:] # reverse and exclude first channels because that's the input to the decoder
+        ls_nonlin_rule_list = ls_nonlin_rule_list[::-1]
+        ch_nonlin_rule_list = ch_nonlin_rule_list[::-1]
+        for i in range(n_cg_blocks):
+            if i == n_cg_blocks - 1:
+                if self.do_initial_linear_projection:
+                    temp_irreps_hidden = (ch_initial_linear_projection*o3.Irreps.spherical_harmonics(lmaxs_decoder[i], 1)).sort().irreps.simplify()
+                else:
+                    temp_irreps_hidden = irreps_in
+            else:
+                temp_irreps_hidden = (ch_size_list[i]*o3.Irreps.spherical_harmonics(lmaxs_decoder[i], 1)).sort().irreps.simplify()
+            decoder_cg_blocks.append(nn.CGBlock(prev_irreps,
+                                                temp_irreps_hidden,
+                                                w3j_matrices,
+                                                linearity_first=linearity_first,
+                                                filter_symmetric=filter_symmetric,
+                                                use_batch_norm=self.use_batch_norm,
+                                                ls_nonlin_rule=ls_nonlin_rule_list[i], # full, elementwise, efficient
+                                                ch_nonlin_rule=ch_nonlin_rule_list[i], # full, elementwise
+                                                norm_type=norm_type, # None, layer, signal
+                                                normalization=normalization, # norm, component -> only if norm_type is not none
+                                                norm_balanced=norm_balanced,
+                                                norm_affine=norm_affine, # None, {True, False} -> for layer_norm, {unique, per_l, per_feature} -> for signal_norm
+                                                norm_nonlinearity=norm_nonlinearity, # None (identity), identity, relu, swish, sigmoid -> only for layer_norm
+                                                norm_location=norm_location, # first, between, last
+                                                weights_initializer=weights_initializer,
+                                                init_scale=1.0))
 
+            # prev_irreps = decoder_cg_blocks[-1].irreps_out
+            prev_irreps = temp_irreps_hidden
+            print(prev_irreps.dim, prev_irreps)
+
+        self.decoder_cg_blocks = torch.nn.ModuleList(decoder_cg_blocks)
+
+        if self.do_initial_linear_projection: # final linear projection
+            initial_irreps = (ch_initial_linear_projection*o3.Irreps.spherical_harmonics(max(irreps_in.ls), 1)).sort().irreps.simplify()
+            self.final_linear_projection = nn.SO3_linearity(initial_irreps, irreps_in)
+            print(irreps_in.dim, irreps_in)
 
         if self.do_final_signal_norm:
-            self.final_signal_norm = torch.nn.Sequential(signal_norm(irreps_in, normalization='component', affine=None))
+            self.final_signal_norm = torch.nn.Sequential(nn.signal_norm(irreps_in, normalization='component', affine=None))
 
         ## setup reconstruction loss functions
-        self.signal_rec_loss = eval(NAME_TO_LOSS_FN[x_rec_loss_fn])(irreps_in, self.device)
+        self.signal_rec_loss = eval(nn.NAME_TO_LOSS_FN[x_rec_loss_fn])(irreps_in, self.device)
     
     # @profile
     def encode(self, x: Tensor):
@@ -209,7 +242,7 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
             if self.learn_frame and i == len(self.encoder_cg_blocks) - 1:
                 last_l1_values = {1: h[1]}
         
-        encoder_invariants = h[0].squeeze(-1)
+        encoder_invariants = self.encoder_bottleneck(h[0].squeeze(-1))
         z_mean = self.encoder_mean(encoder_invariants)
         if self.is_vae:
             z_log_var = self.encoder_log_var(encoder_invariants)
@@ -226,31 +259,31 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
     
     # @profile
     def decode(self, z: Tensor, frame: Tensor):
-        # MLP on z
+        # print('---------------------- In decoder ----------------------', file=sys.stderr)
 
-        h = self.first_decoder_projection(z)
-        for block in self.decoder:
+        h = self.first_decoder_projection({1: frame})
+        h[0] = self.decoder_bottleneck(z).unsqueeze(-1)
+        for i, block in enumerate(self.decoder_cg_blocks):
             h_temp = block(h)
             if self.use_additive_skip_connections:
-                if h.shape[1] == h_temp.shape[1]: # the shape at index 1 is the channels' dimension
-                    h_temp += h
-                elif h.shape[1] > h_temp.shape[1]:
-                    h_temp += h[:, : h_temp.shape[1]] # subsample first channels
-                else: # h[l].shape[1] < h_temp[l].shape[1]
-                    h_temp += torch.nn.functional.pad(h, (0, h_temp.shape[1] - h.shape[1])) # zero pad the channels' dimension
+                for l in h:
+                    if l in h_temp:
+                        if h[l].shape[1] == h_temp[l].shape[1]: # the shape at index 1 is the channels' dimension
+                            h_temp[l] += h[l]
+                        elif h[l].shape[1] > h_temp[l].shape[1]:
+                            h_temp[l] += h[l][:, : h_temp[l].shape[1], :] # subsample first channels
+                        else: # h[l].shape[1] < h_temp[l].shape[1]
+                            h_temp[l] += torch.nn.functional.pad(h[l], (0, 0, 0, h_temp[l].shape[1] - h[l].shape[1])) # zero pad the channels' dimension
             h = h_temp
-        h = self.final_decoder_projection(h)
 
-        # apply frame later!
-        h_dict = {}
-        for l in sorted(list(set(self.irreps_in.ls))):
-            h_dict[l] = h[:, self.irreps_in_ls_indices == l].view(h.shape[0], -1, 2*l+1)
+        if self.do_initial_linear_projection:
+            x_reconst = self.final_linear_projection(h)
+        else:
+            x_reconst = h
 
-        if not torch.allclose(torch.det(frame.cpu()), frame.cpu().new_tensor(1)):
-            print(torch.det(frame.cpu()), file=sys.stderr)
-
-        wigner = get_wigner_D_fibers_from_rot_matrices_v2(self.irreps_in, torch.einsum('bij->bji', frame.cpu()))
-        x_reconst = rotate_signal_batch_fibers_v2(h_dict, put_dict_on_device(wigner, self.device))
+        if self.do_final_signal_norm:
+            x_reconst = self.final_signal_norm(x_reconst)
+        # print('---------------------- Out of decoder ----------------------', file=sys.stderr)
 
         return x_reconst, None
 
@@ -272,16 +305,10 @@ class ClebschGordanVAE_MLP_decoder(torch.nn.Module):
 
         x_reconst, _ = self.decode(z, frame)
 
-        def make_vector(x: Dict[int, Tensor]):
-            x_vec = []
-            for l in sorted(list(x.keys())):
-                x_vec.append(x[l].reshape((x[l].shape[0], -1)))
-            return torch.cat(x_vec, dim=-1)
-
         # gather loss values
-        x_reconst_vec = make_vector(x_reconst)
+        x_reconst_vec = make_vec(x_reconst)
         if x_vec is None:
-            x_vec = make_vector(x) # NOTE: doing this is sub-optimal!
+            x_vec = make_vec(x) # NOTE: doing this is sub-optimal!
         
         x_reconst_loss = self.signal_rec_loss(x_reconst_vec, x_vec)
 

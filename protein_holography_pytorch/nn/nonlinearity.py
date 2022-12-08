@@ -58,7 +58,7 @@ def get_efficient_connections(L_in: int,
             connections[l1][l2].append(l3)
     return connections
 
-class nonlinearity(torch.nn.Module):
+class TP_nonlinearity(torch.nn.Module):
     '''
     Implements an SO(3) tensor product of a tensor with itself.
 
