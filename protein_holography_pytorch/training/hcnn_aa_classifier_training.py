@@ -22,14 +22,17 @@ import e3nn
 from e3nn import o3
 from sklearn.metrics import accuracy_score
 
-from cgnet_utils import *
-
 from typing import *
 
-from ..models import CGNet, SO3_ConvNet
+from protein_holography_pytorch.models import CGNet, SO3_ConvNet
+from protein_holography_pytorch.so3.functional import put_dict_on_device
+from protein_holography_pytorch.cg_coefficients import get_w3j_coefficients
 
 
-def train_classifier(experiment_dir, w3j_matrices_path='../cg_coefficients/w3j_matrices-lmax=14-version=0.5.0.pkl'):
+def hcnn_aa_classifier_training(experiment_dir: str):
+    '''
+    Assumes that directory 'experiment_dir' exists and contains json file with data and model hyperprameters 
+    '''
 
     # get hparams from json`
     with open(os.path.join(experiment_dir, 'hparams.json'), 'r') as f:
@@ -43,34 +46,39 @@ def train_classifier(experiment_dir, w3j_matrices_path='../cg_coefficients/w3j_m
     print('Running on %s.' % (device))
     sys.stdout.flush()
 
-    # get data and make dataloaders
     print('Loading data...')
     sys.stdout.flush()
-    DATA_ARGS = ['rmax', 'lmax', 'n_channels', 'rcut', 'rst_normalization', 'get_H', 'get_SASA', 'get_charge']
-    datasets, data_irreps = load_data(hparams, DATA_ARGS, splits=['train', 'valid'])
+    ########## THE CODE BLOCK BELOW MAY BE CHANGED TO ACCOMODATE A DIFFERENT DATA-LOADING PIPELINE ##########
+    # get data and make dataloaders
+    from protein_holography_pytorch.utils.data import load_data
+    datasets, data_irreps, norm_factor = load_data(hparams, splits=['train', 'valid'])
     train_dataset, valid_dataset = datasets['train'], datasets['valid']
     train_dataloader = DataLoader(train_dataset, batch_size=hparams['batch_size'], generator=rng, shuffle=True, drop_last=False)
     valid_dataloader = DataLoader(valid_dataset, batch_size=hparams['batch_size'], generator=rng, shuffle=True, drop_last=False)
+    ########## THIS CODE BLOCK ABOVE MAY BE CHANGED TO ACCOMODATE A DIFFERENT DATA-LOADING PIPELINE ##########
     print('Data Irreps: %s' % (str(data_irreps)))
     sys.stdout.flush()
 
+    # set norm factor in hparams, save new hparams
+    hparams['model_hparams']['input_normalizing_constant'] = norm_factor
+    with open(os.path.join(experiment_dir, 'hparams.json'), 'w+') as f:
+        json.dump(hparams, f, indent=2)
+
     # load w3j coefficients
-    with gzip.open(w3j_matrices_path, 'rb') as f:
-        w3j_matrices = pickle.load(f)
-    
+    w3j_matrices = get_w3j_coefficients()
     for key in w3j_matrices:
-        if key[0] <= hparams['net_lmax'] and key[1] <= hparams['net_lmax'] and key[2] <= hparams['net_lmax']:
-            if device is not None:
-                w3j_matrices[key] = torch.tensor(w3j_matrices[key]).float().to(device)
-            else:
-                w3j_matrices[key] = torch.tensor(w3j_matrices[key]).float()
-            w3j_matrices[key].requires_grad = False
+        # if key[0] <= hparams['net_lmax'] and key[1] <= hparams['net_lmax'] and key[2] <= hparams['net_lmax']:
+        if device is not None:
+            w3j_matrices[key] = torch.tensor(w3j_matrices[key]).float().to(device)
+        else:
+            w3j_matrices[key] = torch.tensor(w3j_matrices[key]).float()
+        w3j_matrices[key].requires_grad = False
     
     # create model
-    if hparams['model'] == 'cgnet':
-        model = CGNet(data_irreps, w3j_matrices, hparams).to(device)
-    elif hparams['model'] == 'so3_convnet':
-        model = SO3_ConvNet(data_irreps, w3j_matrices, hparams).to(device)
+    if hparams['model_type'] == 'cgnet':
+        model = CGNet(data_irreps, w3j_matrices, hparams['model_hparams'], normalize_input_at_runtime=False).to(device)
+    elif hparams['model_type'] == 'so3_convnet':
+        model = SO3_ConvNet(data_irreps, w3j_matrices, hparams['model_hparams'], normalize_input_at_runtime=False).to(device)
     else:
         raise NotImplementedError()
     
@@ -111,7 +119,7 @@ def train_classifier(experiment_dir, w3j_matrices_path='../cg_coefficients/w3j_m
         reported_times = 0
         start_time = time.time()
         for train_i, (X_train, y_train, data_ids) in enumerate(train_dataloader):
-            X_train = dict_to_device(X_train, device)
+            X_train = put_dict_on_device(X_train, device)
             y_train = y_train.to(device)
             model.train()
 
@@ -133,7 +141,7 @@ def train_classifier(experiment_dir, w3j_matrices_path='../cg_coefficients/w3j_m
                 y_valid_hat_all = []
                 y_valid_all = []
                 for valid_i, (X_valid, y_valid, data_ids) in enumerate(valid_dataloader):
-                    X_valid = dict_to_device(X_valid, device)
+                    X_valid = put_dict_on_device(X_valid, device)
                     y_valid = y_valid.to(device)
                     model.eval()
                     

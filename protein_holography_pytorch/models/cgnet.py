@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import e3nn
 from e3nn import o3
-import nn
+from protein_holography_pytorch import nn
 
 from torch import Tensor
 from typing import *
@@ -24,19 +24,22 @@ class CGNet(torch.nn.Module):
         self.ls_nonlin_rule = hparams['ls_nonlin_rule']
         self.ch_nonlin_rule = hparams['ch_nonlin_rule']
         self.n_fc_blocks = hparams['n_fc_blocks']
-        self.h_dim = hparams['h_dim']
+        self.fc_h_dim = hparams['fc_h_dim']
         self.fc_nonlin = hparams['fc_nonlin']
         self.dropout_rate = hparams['dropout_rate']
+        self.input_normalizing_constant = torch.Tensor(hparams['input_normalizing_constant'], requires_grad=False) if hparams['input_normalizing_constant'] is not None else None
 
     def __init__(self,
                  irreps_in: o3.Irreps,
                  w3j_matrices: Dict,
                  hparams: Dict,
+                 normalize_input_at_runtime: bool = False
                  ):
         super().__init__()
 
         self.irreps_in = irreps_in
         self.load_hparams(hparams)
+        self.normalize_input_at_runtime = normalize_input_at_runtime
         self.lmax = max(self.irreps_in.ls)
 
         # equivariant, CG blocks
@@ -68,13 +71,13 @@ class CGNet(torch.nn.Module):
         fc_blocks = []
         for _ in range(self.n_fc_blocks):
             block = []
-            block.append(torch.nn.Linear(prev_dim, self.h_dim))
+            block.append(torch.nn.Linear(prev_dim, self.fc_h_dim))
             block.append(eval(nn.NONLIN_TO_ACTIVATION_MODULES[self.fc_nonlin]))
             if self.dropout_rate > 0.0:
                 block.append(torch.nn.Dropout(self.dropout_rate))
 
             fc_blocks.append(torch.nn.Sequential(*block))
-            prev_dim = self.h_dim
+            prev_dim = self.fc_h_dim
 
         self.fc_blocks = torch.nn.ModuleList(fc_blocks)
 
@@ -84,6 +87,11 @@ class CGNet(torch.nn.Module):
 
     
     def forward(self, x: Dict[int, Tensor]) -> Tensor:
+
+        # normalize input data if desired
+        if self.normalize_input_at_runtime and self.input_normalizing_constant is not None:
+            for l in x:
+                x[l] = x[l] / self.input_normalizing_constant
 
         # equivariant, CG blocks
         h = x

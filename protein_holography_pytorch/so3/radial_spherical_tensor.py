@@ -9,7 +9,7 @@ import torch
 
 from e3nn import o3
 
-from projections import complex_spherical_harmonics
+# from projections import complex_spherical_harmonics
 
 from typing import List, Union
 
@@ -95,11 +95,12 @@ class RadialSphericalTensor(o3.Irreps):
         if self.radialBases.complex_sph: # automatically normalized (for now? if otherwise is possible?)
             # no extra normalization for now, copying mike's code
             # Note: converting from tensors to numpy arrays and back. converting back for compatibility, but this is not a differentiable operation
-            print('evaluating complex spherical harmonics')
-            if radii is not None:
-                angularCoeffs = torch.tensor(complex_spherical_harmonics(self, vectors.view(-1, 3).numpy() / radii.view(-1, 1).expand(-1, 3).numpy(), normalization='norm'))
-            else:
-                angularCoeffs = torch.tensor(complex_spherical_harmonics(self, vectors.view(-1, 3).numpy(), normalization='norm'))
+            raise NotImplementedError()
+            # print('evaluating complex spherical harmonics')
+            # if radii is not None:
+            #     angularCoeffs = torch.tensor(complex_spherical_harmonics(self, vectors.view(-1, 3).numpy() / radii.view(-1, 1).expand(-1, 3).numpy(), normalization='norm'))
+            # else:
+            #     angularCoeffs = torch.tensor(complex_spherical_harmonics(self, vectors.view(-1, 3).numpy(), normalization='norm'))
         else:
             if radii is not None:
                 angularCoeffs = o3.spherical_harmonics(self, vectors.view(-1, 3) / radii.view(-1, 1).expand(-1, 3), normalize=False, normalization='integral') * 2 * math.sqrt(math.pi)
@@ -214,7 +215,8 @@ class RadialSphericalTensor(o3.Irreps):
         else: values = values.to(bases.dtype)
         
         if self.radialBases.complex_sph:
-            bases = torch.conj(bases)
+            raise NotImplementedError()
+            # bases = torch.conj(bases)
 
         if normalization == 'sqrt_power':
             # This makes the total power of each point cloud equal to 1

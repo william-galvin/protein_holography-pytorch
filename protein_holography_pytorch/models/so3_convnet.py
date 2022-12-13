@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import e3nn
 from e3nn import o3
-import nn
+from protein_holography_pytorch import nn
 
 from torch import Tensor
 from typing import *
@@ -23,12 +23,12 @@ class SO3_ConvNet(torch.nn.Module):
         self.h_dim = hparams['h_dim']
         self.fc_nonlin = hparams['fc_nonlin']
         self.dropout_rate = hparams['dropout_rate']
-        self.ch_size_list = list(map(int, hparams['ch_size_list'].split(',')))
-        self.ls_nonlin_rule_list = hparams['ls_nonlin_rule_list'].split(',')
-        self.ch_nonlin_rule_list = hparams['ch_nonlin_rule_list'].split(',')
+        self.ch_size_list = hparams['ch_size_list']
+        self.ls_nonlin_rule_list = hparams['ls_nonlin_rule_list']
+        self.ch_nonlin_rule_list = hparams['ch_nonlin_rule_list']
         self.do_initial_linear_projection = hparams['do_initial_linear_projection']
         self.ch_initial_linear_projection = hparams['ch_initial_linear_projection']
-        self.lmax_list = list(map(int, hparams['lmax_list'].split(',')))
+        self.lmax_list = hparams['lmax_list']
         self.use_additive_skip_connections = hparams['use_additive_skip_connections']
         self.use_batch_norm = hparams['use_batch_norm']
         self.weights_initializer = hparams['weights_initializer']
@@ -40,6 +40,7 @@ class SO3_ConvNet(torch.nn.Module):
         self.norm_location = hparams['norm_location']
         self.linearity_first = hparams['linearity_first']
         self.filter_symmetric = hparams['filter_symmetric']
+        self.input_normalizing_constant = torch.Tensor(hparams['input_normalizing_constant'], requires_grad=False) if hparams['input_normalizing_constant'] is not None else None
 
         assert self.n_cg_blocks == len(self.ch_size_list)
         assert self.n_cg_blocks == len(self.ls_nonlin_rule_list)
@@ -50,11 +51,14 @@ class SO3_ConvNet(torch.nn.Module):
     def __init__(self,
                  irreps_in: o3.Irreps,
                  w3j_matrices: Dict[int, Tensor],
-                 hparams: Dict):
+                 hparams: Dict,
+                 normalize_input_at_runtime: bool = False
+                 ):
         super().__init__()
 
         self.irreps_in = irreps_in
         self.load_hparams(hparams)
+        self.normalize_input_at_runtime = normalize_input_at_runtime
 
         assert self.n_cg_blocks == len(self.ch_size_list)
         assert self.lmax_list is None or self.n_cg_blocks == len(self.lmax_list)
@@ -125,6 +129,11 @@ class SO3_ConvNet(torch.nn.Module):
 
     
     def forward(self, x: Dict[int, Tensor]) -> Tensor:
+
+        # normalize input data if desired
+        if self.normalize_input_at_runtime and self.input_normalizing_constant is not None:
+            for l in x:
+                x[l] = x[l] / self.input_normalizing_constant
 
         if self.do_initial_linear_projection:
             h = self.initial_linear_projection(x)

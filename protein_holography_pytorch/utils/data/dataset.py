@@ -27,3 +27,4 @@ class NeighborhoodsDataset(Dataset):
             x_fiber[l] = self.x[idx][self.ls_indices == l].view(-1, 2*l+1)
         
         return x_fiber, self.x[idx], self.y[idx], self.c[idx]
+

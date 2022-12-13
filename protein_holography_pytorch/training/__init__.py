@@ -1,0 +1,2 @@
+from .hcnn_aa_classifier_training import hcnn_aa_classifier_training
+from .hcnn_aa_classifier_inference import hcnn_aa_classifier_inference
