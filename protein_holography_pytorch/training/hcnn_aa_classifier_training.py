@@ -118,7 +118,7 @@ def hcnn_aa_classifier_training(experiment_dir: str):
         n_steps = 0
         reported_times = 0
         start_time = time.time()
-        for train_i, (X_train, y_train, data_ids) in enumerate(train_dataloader):
+        for train_i, (X_train, X_train_vec, y_train, data_ids) in enumerate(train_dataloader):
             X_train = put_dict_on_device(X_train, device)
             y_train = y_train.to(device)
             model.train()
@@ -140,7 +140,7 @@ def hcnn_aa_classifier_training(experiment_dir: str):
                 temp_valid_loss_trace = []
                 y_valid_hat_all = []
                 y_valid_all = []
-                for valid_i, (X_valid, y_valid, data_ids) in enumerate(valid_dataloader):
+                for valid_i, (X_valid, X_valid_vec, y_valid, data_ids) in enumerate(valid_dataloader):
                     X_valid = put_dict_on_device(X_valid, device)
                     y_valid = y_valid.to(device)
                     model.eval()

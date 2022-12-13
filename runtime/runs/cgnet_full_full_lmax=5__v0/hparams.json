@@ -17,13 +17,14 @@
   "model_hparams": {
     "output_dim": 20,
     "n_cg_blocks": 4,
-    "ch_dim": 14,
+    "ch_dim": 15,
     "ls_nonlin_rule": "full",
     "ch_nonlin_rule": "full",
     "n_fc_blocks": 1,
     "fc_h_dim": 500,
-    "fc_nonlin": "silu",
-    "dropout_rate": 0.0
+    "fc_nonlin": "identity",
+    "dropout_rate": 0.0,
+    "input_normalizing_constant": null
   },
   "n_epochs": 5,
   "lr": 0.001,

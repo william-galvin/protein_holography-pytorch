@@ -84,7 +84,7 @@ def hcnn_aa_classifier_inference(experiment_dir: str,
     y_hat_all_index = []
     y_all = []
     data_ids_all = []
-    for i, (X, y, data_ids) in enumerate(test_dataloader):
+    for i, (X, X_vec, y, data_ids) in enumerate(test_dataloader):
         X = put_dict_on_device(X, device)
         y = y.to(device)
         model.eval()

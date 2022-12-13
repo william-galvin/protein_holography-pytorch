@@ -20,12 +20,12 @@ model_type: 'cgnet'
 model_hparams: 
   output_dim: 20
   n_cg_blocks: 4
-  ch_dim: 14
+  ch_dim: 15
   ls_nonlin_rule: 'full' # choices = ['full', 'elementwise', 'efficient']
   ch_nonlin_rule: 'full' # choices = ['full', 'elementwise']
   n_fc_blocks: 1
   fc_h_dim: 500
-  fc_nonlin: 'silu' # choices = ['relu', 'silu', 'identity', 'sigmoid']
+  fc_nonlin: 'identity' # choices = ['relu', 'silu', 'identity', 'sigmoid']
   dropout_rate: 0.0
 
 # training hparams

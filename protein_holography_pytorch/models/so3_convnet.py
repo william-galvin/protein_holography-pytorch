@@ -20,7 +20,7 @@ class SO3_ConvNet(torch.nn.Module):
         self.output_dim = hparams['output_dim']
         self.n_cg_blocks = hparams['n_cg_blocks']
         self.n_fc_blocks = hparams['n_fc_blocks']
-        self.h_dim = hparams['h_dim']
+        self.fc_h_dim = hparams['fc_h_dim']
         self.fc_nonlin = hparams['fc_nonlin']
         self.dropout_rate = hparams['dropout_rate']
         self.ch_size_list = hparams['ch_size_list']
@@ -110,13 +110,13 @@ class SO3_ConvNet(torch.nn.Module):
         fc_blocks = []
         for _ in range(self.n_fc_blocks):
             block = []
-            block.append(torch.nn.Linear(prev_dim, self.h_dim))
+            block.append(torch.nn.Linear(prev_dim, self.fc_h_dim))
             block.append(eval(nn.NONLIN_TO_ACTIVATION_MODULES[self.fc_nonlin]))
             if self.dropout_rate > 0.0:
                 block.append(torch.nn.Dropout(self.dropout_rate))
 
             fc_blocks.append(torch.nn.Sequential(*block))
-            prev_dim = self.h_dim
+            prev_dim = self.fc_h_dim
 
         if len(fc_blocks) > 0:
             self.fc_blocks = torch.nn.ModuleList(fc_blocks)
