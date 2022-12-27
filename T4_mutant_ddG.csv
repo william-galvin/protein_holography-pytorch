@@ -1,0 +1,41 @@
+mutant,pdb,ddG,ph,Change melting temp,effect,source,pos,wt,mut
+G77A,1L23,0.4,6.5,,Neutral,[64],77,G,A
+A82P,1L24,0.8,6.5,,Neutral,[64],82,A,P
+A93T,129L,,5.4,0.13,Neutral,[65],93,A,T
+T151S,130L,,5.4,0.93,Neutral,[65],151,T,S
+T26S,131L,,5.4,1.35,Neutral,[65],26,T,S
+V149M,1CV6,-2.8,5.4,,Destabilizing,[66],149,V,M
+V87M,1CU3,-2.3,5.4,,Destabilizing,[66],87,V,M
+S38N,1L61,0.6,5.7 -5.9,,Neutral,[67],38,S,N
+T109N,1L59,0.1,5.7 -5.9,,Neutral,[67],109,T,N
+T109D,1L62,0.6,5.7 -5.9,,Neutral,[67],109,T,D
+N116D,1L57,0.6,5.7 -5.9,,Neutral,[67],116,N,D
+D92N,1L55,-1.4,5.7 -5.9,,Destabilizing,[67],92,D,N
+S38D,1L19,,5,2.2,Neutral,[68],38,S,D
+N144D,1L20,,5,2,Neutral,[68],144,N,D
+M106I,1P46,0.2,5,,Neutral,[69],106,M,I
+M120Y,1P6Y,-0.1,5,,Neutral,[69],120,M,Y
+V149I,1G0Q,-0.1,5.4,,Neutral,[70],149,V,I
+T152V,1G0L,0.2,5.4,,Neutral,[70],152,T,V
+V149S,1G06,-4.4,5.4,,Destabilizing,[70],149,V,S
+V149C,1G07,-2,5.4,,Destabilizing,[70],149,V,C
+V149G,1G0P,-4.9,5.4,,Destabilizing,[70],149,V,G
+E108V,1QUG,0.7,5.4,,Neutral,[71],108,E,V
+L99G,1QUD,-6.3,5.4,,Destabilizing,[71],99,L,G
+S117F,1TLA,1.1,5.4,,Neutral,[72],117,S,F
+M106L,234L,0.5,3,,Neutral,[73],106,M,L
+M120L,233L,0.5,3,,Neutral,[73],120,M,L
+M106K,231L,-3.4,3,,Destabilizing,[73],106,M,K
+M120K,232L,-1.6,3,,Destabilizing,[73],120,M,K
+I3V,1L17,-0.4,6.5,,Neutral,[74],3,I,V
+I3Y,1L18,-2.3,6.5,,Destabilizing,[74],3,I,Y
+M102K,1L54,-6.9,5.3,,Destabilizing,[75],102,M,K
+T157I,1L10,-1.2,6,,Destabilizing,[76],157,T,I
+G156D,1L16,-2.3,6.5,,Destabilizing,[77],156,G,D
+R96H,1L34,,,,Destabilizing,[78],96,R,H
+I3P,1L97,,,,Destabilizing,[79],3,I,P
+R96N,3CDT,-3,5.35,,Destabilizing,[80],96,R,N
+R96D,3C8Q,-3.5,5.35,,Destabilizing,[80],96,R,D
+R96W,3FI5,-4.5,5.35,,Destabilizing,[80],96,R,W
+R96Y,3C80,-4.7,5.35,,Destabilizing,[80],96,R,Y
+M102L,1L77,-2.11,5.7,,Destabilizing,[81],102,M,L

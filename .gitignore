@@ -3,3 +3,9 @@
 *.png
 *.pt
 *.npy
+*.npz
+*.err
+*.log
+*.out
+*.json
+*.csv

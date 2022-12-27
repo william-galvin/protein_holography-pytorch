@@ -1,0 +1,53 @@
+
+# data hparams
+data_dir: '/gscratch/scrubbed/gvisan01/data/zernicke'
+neigh_kind: 'no_residue-yes_sidechain'
+n_train_neigh: 2934478
+n_valid_neigh: 721845
+n_test_neigh: 41931
+rcut: 10.0
+lmax: 6
+rmax: 20
+n_channels: 7
+rst_normalization: 'square'
+get_H: true
+get_SASA: true
+get_charge: true
+
+normalize_input: false
+
+# model hparams
+model_type: 'so3_convnet'
+model_hparams: 
+  output_dim: 20
+  n_cg_blocks: 6
+  n_fc_blocks: 1
+  fc_h_dim: 210
+  fc_nonlin: 'silu'
+  dropout_rate: 0.0
+  ch_size_list: [60, 90, 120, 150, 180, 210]
+  ls_nonlin_rule_list: ['efficient', 'efficient', 'efficient', 'efficient', 'efficient', 'efficient']
+  ch_nonlin_rule_list: ['elementwise', 'elementwise', 'elementwise', 'elementwise', 'elementwise', 'elementwise']
+  do_initial_linear_projection: true
+  ch_initial_linear_projection: 60
+  lmax_list: [6, 6, 6, 4, 2, 0]
+  use_additive_skip_connections: true
+  use_batch_norm: true
+  weights_initializer: null
+  norm_type: signal
+  normalization: 'component'
+  norm_balanced: false
+  norm_affine: per_l
+  norm_nonlinearity: null
+  norm_location: between
+  linearity_first: false
+  filter_symmetric: true
+
+# training hparams
+n_epochs: 5
+lr: 0.001
+lr_scheduler: 'reduce_lr_on_plateau'
+batch_size: 512
+
+# rng seed, for reproducibility
+seed: 123456789
