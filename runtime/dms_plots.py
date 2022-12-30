@@ -281,11 +281,11 @@ def dms_scatter_plot(
     scatter_ax = fig.add_subplot()
 
     pearson_r, pearson_pval = pearsonr(
-        df[~np.isnan(df[dms_column])][pred_column],
-        df[~np.isnan(df[dms_column])][dms_column])
+        df[np.logical_and(~np.isnan(df[dms_column]), ~np.isnan(df[pred_column]))][pred_column],
+        df[np.logical_and(~np.isnan(df[dms_column]), ~np.isnan(df[pred_column]))][dms_column])
     spearman_r, spearman_pval = spearmanr(
-        df[~np.isnan(df[dms_column])][pred_column],
-        df[~np.isnan(df[dms_column])][dms_column])
+        df[np.logical_and(~np.isnan(df[dms_column]), ~np.isnan(df[pred_column]))][pred_column],
+        df[np.logical_and(~np.isnan(df[dms_column]), ~np.isnan(df[pred_column]))][dms_column])
     
     scatter_ax.scatter(
         df[dms_column], df[pred_column],

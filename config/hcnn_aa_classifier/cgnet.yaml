@@ -14,7 +14,7 @@ get_H: true
 get_SASA: true
 get_charge: true
 
-normalize_input: true
+normalize_input: false
 
 # model hparams
 model_type: 'cgnet'

@@ -13,17 +13,19 @@ from dms_plots import dms_scatter_plot, dms_roc_plot
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--predictions_filepath', type=str, default='runs/so3_convnet_lmax=6__v1/2LZM-lowest_valid_loss_model.npz')
-    parser.add_argument('--dms_input_filepath', type=optional_str, default='../T4_mutant_ddG.csv',
+    parser.add_argument('--predictions_filepath', type=str, default='runs/cgnet_full_full_lmax=5__v0/2LZM-final_model.npz')
+    parser.add_argument('--dms_input_filepath', type=optional_str, default='../T4_mutant_ddG.csv', # '../T4_mutant_ddG.csv', '/gscratch/spe/gvisan01/dms_data/AMIE_PSEAE_Whitehead/output_AMIE_PSEAE_Whitehead.csv'
                         help='Path to csv file containing DMS experiment data. If None, script returns all possible mutations in file named "all_muts.csv".')
-    parser.add_argument('--dms_output_filepath', type=optional_str, default='runs/so3_convnet_lmax=6__v1/T4_mutant_ddG-2LZM-lowest_valid_loss_model.csv')
+    parser.add_argument('--dms_output_filepath', type=optional_str, default='runs/cgnet_full_full_lmax=5__v0/2LZM-final_model.csv')
     
-    parser.add_argument('--dms_column', type=optional_str, default='ddG')
-    parser.add_argument('--dms_label', type=optional_str, default=r'stability effect, $\Delta\Delta G$')
+    parser.add_argument('--dms_column', type=optional_str, default='ddG') # ddG
+    parser.add_argument('--dms_label', type=optional_str, default=None) #r'stability effect, $\Delta\Delta G$')
+    parser.add_argument('--dms_filepath', type=optional_str, default='runs/cgnet_full_full_lmax=5__v0/dGG-final_model.png') #r'stability effect, $\Delta\Delta G$')
 
-    parser.add_argument('--binary_dms_column', type=optional_str, default='effect')
-    parser.add_argument('--binary_dms_pos_value', type=optional_str, default='Destabilizing')
-    parser.add_argument('--binary_dms_label', type=optional_str, default='Stability Effect\n(Destabilizing = 1, Neutral = 0)')
+    parser.add_argument('--binary_dms_column', type=optional_str, default='effect') #'effect')
+    parser.add_argument('--binary_dms_pos_value', type=optional_str, default='Destabilizing') #'Destabilizing')
+    parser.add_argument('--binary_dms_label', type=optional_str, default='Stability Effect\n(Destabilizing = 1, Neutral = 0)') #'Stability Effect\n(Destabilizing = 1, Neutral = 0)')
+    parser.add_argument('--binary_dms_filepath', type=optional_str, default='runs/cgnet_full_full_lmax=5__v0/stability_roc-final_model.png') # runs/cgnet_full_full_lmax=5__v0/dGG-final_model.png
     
     args = parser.parse_args()
 
@@ -58,14 +60,17 @@ if __name__ == '__main__':
                         break
                     else:
                         raise Exception('DMS positions and PDB positions do not match.')
+
+        # print(positions)
+        # print(np.array(list(set(list(dms_pos_N)))))
         
-        pe_wt = [logits[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_wt]]] for dms_pos, dms_wt in zip(dms_pos_N, dms_wt_N)]
-        pe_mut = [logits[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_mut]]] for dms_pos, dms_mut in zip(dms_pos_N, dms_mut_N)]
+        pe_wt = [logits[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_wt]]] if np.where(positions == dms_pos)[0].shape[0] > 0 else np.nan for dms_pos, dms_wt in zip(dms_pos_N, dms_wt_N)]
+        pe_mut = [logits[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_mut]]] if np.where(positions == dms_pos)[0].shape[0] > 0 else np.nan for dms_pos, dms_mut in zip(dms_pos_N, dms_mut_N)]
         df['pe_wt'] = pe_wt
         df['pe_mut'] = pe_mut
 
-        log_proba_wt = [np.log(softmax(logits, axis=-1)[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_wt]]]) for dms_pos, dms_wt in zip(dms_pos_N, dms_wt_N)]
-        log_proba_mut = [np.log(softmax(logits, axis=-1)[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_mut]]]) for dms_pos, dms_mut in zip(dms_pos_N, dms_mut_N)]
+        log_proba_wt = [np.log(softmax(logits, axis=-1)[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_wt]]]) if np.where(positions == dms_pos)[0].shape[0] > 0 else np.nan for dms_pos, dms_wt in zip(dms_pos_N, dms_wt_N)]
+        log_proba_mut = [np.log(softmax(logits, axis=-1)[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_mut]]]) if np.where(positions == dms_pos)[0].shape[0] > 0 else np.nan for dms_pos, dms_mut in zip(dms_pos_N, dms_mut_N)]
         df['log_proba_wt'] = log_proba_wt
         df['log_proba_mut'] = log_proba_mut
 
@@ -82,7 +87,7 @@ if __name__ == '__main__':
         (pearson_r, pearson_pval), (spearman_r, spearman_pval) = dms_scatter_plot(df,
                                                                                   args.dms_column, 'log_proba_mut__minus__log_proba_wt',
                                                                                   dms_label=args.dms_label, pred_label=r'H-CNN Prediction',
-                                                                                  filename = 'T4_ddG.png')
+                                                                                  filename = args.dms_filepath)
         dms_comparison_json['Pearson R'] = pearson_r
         dms_comparison_json['Pearson R - pval'] = pearson_pval
         dms_comparison_json['Spearman R'] = spearman_r
@@ -96,8 +101,8 @@ if __name__ == '__main__':
                                'log_proba_mut__minus__log_proba_wt',
                                dms_pos_value = args.binary_dms_pos_value,
                                dms_label = args.binary_dms_label,
-                               filename = 'T4_roc.png')
-        dms_comparison_json['Pearson R'] = pearson_r
+                               filename = args.binary_dms_filepath)
+        dms_comparison_json['ROC AUC'] = roc_auc
     
     if len(dms_comparison_json) != 0:
         dms_output_filepath_json = args.dms_output_filepath.replace('.csv', '.json')

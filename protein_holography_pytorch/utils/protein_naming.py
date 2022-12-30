@@ -40,12 +40,10 @@ aa_to_ind_size = {'CYS': 2, 'ILE': 8, 'GLN': 12, 'VAL': 6, 'LYS': 13,
        'PRO': 4, 'GLY': 0, 'THR': 5, 'PHE': 16, 'GLU': 14,
        'HIS': 15, 'MET': 11, 'ASP': 7, 'LEU': 9, 'ARG': 17,
        'TRP': 19, 'ALA': 1, 'ASN': 10, 'TYR': 18, 'SER': 3}
-
 ind_to_aa_size = {0: 'GLY', 1: 'ALA', 2: 'CYS', 3: 'SER', 4: 'PRO',
        5: 'THR', 6: 'VAL', 7: 'ASP', 8: 'ILE', 9: 'LEU',
        10: 'ASN', 11: 'MET', 12: 'GLN', 13: 'LYS', 14: 'GLU',
        15: 'HIS', 16: 'PHE', 17: 'ARG', 18: 'TYR', 19: 'TRP'}
-
 aa_to_ind_one_letter = {'ALA': 0, 'CYS': 1, 'ASP': 2, 'GLU': 3,
                         'PHE': 4, 'GLY': 5, 'HIS': 6, 'ILE': 7,
                         'LYS': 8, 'LEU': 9, 'MET': 10, 'ASN': 11,
