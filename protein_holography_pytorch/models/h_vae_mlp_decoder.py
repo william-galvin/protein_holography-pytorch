@@ -1,4 +1,11 @@
 
+'''
+
+NOT TESTED YET
+
+'''
+
+
 import sys, os
 import numpy as np
 import torch
@@ -13,16 +20,7 @@ from typing import *
 sys.path.append('..')
 from tests.equivariance_tests import rotate_signal_batch_fibers, get_wigner_D_fibers_from_rot_matrices, put_dict_on_device, take_dict_down_from_device, get_wigner_D_fibers_from_rot_matrices_v2, rotate_signal_batch_fibers_v2
 
-# MAX_FLOAT32 = torch.tensor(3e30).type(torch.float32)
 
-'''
-Allow to decide, for each cg block:
-- number of channels (constant across ls)
-- ls_nonlin_rule
-- ch_nonlin_rule
-
-Use the same kind(s) of normalization(s) for all blocks
-'''
 
 class H_VAE_MLP_decoder(torch.nn.Module):
     def __init__(self,

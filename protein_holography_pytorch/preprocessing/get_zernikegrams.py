@@ -109,7 +109,7 @@ def get_zernikegram_of_neighborhood(coords_list: list,
 
 
 def process_data(nb: np.array,
-                 convert_to_cartesian: bool = True,
+                 convert_to_cartesian: bool = False,
                  backbone_only: bool = False,
                  request_frame: bool = False,
                  get_H: bool = False,
@@ -121,7 +121,7 @@ def process_data(nb: np.array,
     if convert_to_cartesian:
         cartesian_coords = spherical_to_cartesian__numpy(nb['coords'])
     else:
-        cartesian_coords = nb['coords']
+        cartesian_coords = nb['coords'] # already in cartesian coords
 
     if backbone_only:
         if len(nb['atom_names'][0]) != 4:

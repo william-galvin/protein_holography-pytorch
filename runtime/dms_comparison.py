@@ -22,10 +22,10 @@ if __name__ == '__main__':
     parser.add_argument('--dms_label', type=optional_str, default=None) #r'stability effect, $\Delta\Delta G$')
     parser.add_argument('--dms_filepath', type=optional_str, default='runs/cgnet_full_full_lmax=5__v0/dGG-final_model.png') #r'stability effect, $\Delta\Delta G$')
 
-    parser.add_argument('--binary_dms_column', type=optional_str, default='effect') #'effect')
-    parser.add_argument('--binary_dms_pos_value', type=optional_str, default='Destabilizing') #'Destabilizing')
-    parser.add_argument('--binary_dms_label', type=optional_str, default='Stability Effect\n(Destabilizing = 1, Neutral = 0)') #'Stability Effect\n(Destabilizing = 1, Neutral = 0)')
-    parser.add_argument('--binary_dms_filepath', type=optional_str, default='runs/cgnet_full_full_lmax=5__v0/stability_roc-final_model.png') # runs/cgnet_full_full_lmax=5__v0/dGG-final_model.png
+    parser.add_argument('--binary_dms_column', type=optional_str, default=None) #'effect')
+    parser.add_argument('--binary_dms_pos_value', type=optional_str, default=None) #'Destabilizing')
+    parser.add_argument('--binary_dms_label', type=optional_str, default=None) #'Stability Effect\n(Destabilizing = 1, Neutral = 0)')
+    parser.add_argument('--binary_dms_filepath', type=optional_str, default=None) # runs/cgnet_full_full_lmax=5__v0/dGG-final_model.png
     
     args = parser.parse_args()
 
@@ -34,6 +34,9 @@ if __name__ == '__main__':
 
     data_ids = arrays['data_ids']
     positions = np.array([int(data_id.split('_')[3]) for data_id in data_ids])
+
+    positions = np.arange(1, positions.shape[0]+1)
+
     logits = arrays['logits']
     targets = arrays['targets']
     aa_targets = np.array([aa_to_one_letter[ind_to_aa[target]] for target in targets])
@@ -49,8 +52,17 @@ if __name__ == '__main__':
                 raise NotImplementedError('Multiple mutations prediction not yet implemented')
         
         dms_pos_N = np.array([int(mutant[1:-1]) for mutant in df['mutant']])
+        unique_dms_pos = np.array(list(set(list(dms_pos_N))))
+        dms_pos_to_new_pos = {}
+        for i, pos in enumerate(unique_dms_pos):
+            dms_pos_to_new_pos[pos] = i + 1
+        dms_pos_N = np.array([dms_pos_to_new_pos[pos] for pos in dms_pos_N])
+
         dms_wt_N = np.array([mutant[0] for mutant in df['mutant']])
         dms_mut_N = np.array([mutant[-1] for mutant in df['mutant']])
+
+        print(positions)
+        print(np.array(list(set(list(dms_pos_N)))))
 
         # check DMS csv file and predictions are aligned
         for dms_pos, dms_wt in zip(dms_pos_N, dms_wt_N):
@@ -60,9 +72,6 @@ if __name__ == '__main__':
                         break
                     else:
                         raise Exception('DMS positions and PDB positions do not match.')
-
-        # print(positions)
-        # print(np.array(list(set(list(dms_pos_N)))))
         
         pe_wt = [logits[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_wt]]] if np.where(positions == dms_pos)[0].shape[0] > 0 else np.nan for dms_pos, dms_wt in zip(dms_pos_N, dms_wt_N)]
         pe_mut = [logits[np.where(positions == dms_pos)[0][0]][aa_to_ind[one_letter_to_aa[dms_mut]]] if np.where(positions == dms_pos)[0].shape[0] > 0 else np.nan for dms_pos, dms_mut in zip(dms_pos_N, dms_mut_N)]

@@ -172,7 +172,7 @@ class SO3_ConvNet(torch.nn.Module):
 
         return out
 
-    def predict(self, dataset: NeighborhoodsDataset, device: str = 'cpu'):
+    def predict(self, dataset: NeighborhoodsDataset, device: str = 'cpu') -> Dict:
         from torch.utils.data import DataLoader
         from protein_holography_pytorch.so3.functional import put_dict_on_device
 

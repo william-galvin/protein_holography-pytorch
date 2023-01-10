@@ -1,4 +1,11 @@
 
+'''
+
+NOT TESTED YET
+
+'''
+
+
 import sys, os
 import numpy as np
 import torch
@@ -10,68 +17,60 @@ from utils import make_vec
 from torch import Tensor
 from typing import *
 
-# MAX_FLOAT32 = torch.tensor(3e30).type(torch.float32)
 
-'''
-Allow to decide, for each cg block:
-- number of channels (constant across ls)
-- ls_nonlin_rule
-- ch_nonlin_rule
-
-Use the same kind(s) of normalization(s) for all blocks
-'''
 
 class H_VAE(torch.nn.Module):
+
+    def load_hparams(self, hparams):
+        self.latent_dim = hparams['latent_dim'] # int
+        self.net_lmax = hparams['net_lmax'] # int
+
+        self.ch_size_list = hparams['ch_size_list'] # List[int] ; as they showld appear in the encoder
+        self.lmax_list = hparams['lmax_list'] # Optional[List[int]] ; as they should appear in the encoder
+        self.ls_nonlin_rule_list = hparams['ls_nonlin_rule_list'] # List[str] ; as they should appear in the encoder
+        self.ch_nonlin_rule_list = hparams['ch_nonlin_rule_list'] # List[str] ; as they should appear in the encoder
+        self.do_initial_linear_projection = hparams['do_initial_linear_projection'] # bool
+        self.ch_initial_linear_projection = hparams['ch_initial_linear_projection'] # int
+        self.bottleneck_hidden_dims = hparams['bottleneck_hidden_dims'] # Optional[List[int]], as they should appear in the encoder
+        self.use_additive_skip_connections = hparams['use_additive_skip_connections'] # bool
+        self.use_batch_norm = hparams['use_batch_norm'] # bool
+        self.weights_initializer = hparams['weights_initializer'] # Optional[str]
+        self.norm_type = hparams['norm_type'] # Optional[str] ; None, layer, signal
+        self.normalization = hparams['normalization'] # str ; norm, component
+        self.norm_balanced = hparams['norm_balanced'] # bool ; only for signal norm
+        self.norm_affine = hparams['norm_affine'] # Optional[Union[str, bool]] ; None, {True, False} -> for layer_norm, {unique, per_l, per_feature} -> for signal_norm
+        self.norm_nonlinearity = hparams['norm_nonlinearity'] # Optional[str] ; None (identity), identity, relu, swish, sigmoid -> only for layer_norm
+        self.norm_location = hparams['norm_location'] # str ; first, between, last
+        self.linearity_first = hparams['linearity_first'] # bool ; currently only works with this being false
+        self.filter_symmetric = hparams['filter_symmetric'] # bool ; whether to exclude duplicate pairs of l's from the tensor product nonlinearity
+        self.x_rec_loss_fn = hparams['x_rec_loss_fn'] # str ; mse, mse_normalized, cosine
+        self.do_final_signal_norm = hparams['do_final_signal_norm'] # bool
+        self.learn_frame = hparams['learn_frame'] # bool
+        self.is_vae = hparams['is_vae'] # bool
+
+        assert self.lmax_list is None or len(self.ch_size_list) == len(self.lmax_list)
+        assert len(self.ch_size_list) == len(self.ls_nonlin_rule_list)
+        assert len(self.ch_size_list) == len(self.ch_nonlin_rule_list)
+        self.n_cg_blocks = len(self.ch_size_list)
+
     def __init__(self,
                  irreps_in: o3.Irreps,
-                 latent_dim: int,
-                 net_lmax: int,
-                 n_cg_blocks: int,
-                 ch_size_list: List[int],
-                 ls_nonlin_rule_list: List[str], # as they should appear in the encoder
-                 ch_nonlin_rule_list: List[str], # as they should appear in the encoder
-                 do_initial_linear_projection: bool,
-                 ch_initial_linear_projection: int,
                  w3j_matrices: Dict[int, Tensor],
+                 hparams: Dict,
                  device: str,
-                 bottleneck_hidden_dims: Optional[List[int]] = None,
-                 lmax_list: Optional[List[int]] = None, # as they should appear in the encoder
-                 use_additive_skip_connections: bool = False,
-                 use_batch_norm: bool = True,
-                 weights_initializer: Optional[str] = None,
-                 norm_type: str = 'signal', # None, layer, signal
-                 normalization: str = 'component', # norm, component -> only considered if norm_type is not none
-                 norm_balanced: bool = False, # only for signal norm
-                 norm_affine: Optional[Union[str, bool]] = 'per_l', # None, {True, False} -> for layer_norm, {unique, per_l, per_feature} -> for signal_norm
-                 norm_nonlinearity: str = None, # None (identity), identity, relu, swish, sigmoid -> only for layer_norm
-                 norm_location: str = 'between', # first, between, last
-                 linearity_first: bool = False, # currently only works with this being false
-                 filter_symmetric: bool = True, # whether to exclude duplicate pairs of l's from the tensor product nonlinearity
-                 x_rec_loss_fn: str = 'mse', # mse, mse_normalized, cosine
-                 do_final_signal_norm: bool = False,
-                 learn_frame: bool = True,
-                 is_vae: bool = True):
+                 normalize_input_at_runtime: bool = False
+                 ):
         super().__init__()
 
         self.irreps_in = irreps_in
-        self.do_initial_linear_projection = do_initial_linear_projection
+        self.load_hparams(hparams)
         self.device = device
-        self.use_additive_skip_connections = use_additive_skip_connections
-        self.linearity_first = linearity_first
-        self.use_batch_norm = use_batch_norm
-        self.x_rec_loss_fn = x_rec_loss_fn
-        self.latent_dim = latent_dim
-        self.do_final_signal_norm = do_final_signal_norm
-        self.is_vae = is_vae
+        self.normalize_input_at_runtime = normalize_input_at_runtime
 
-        assert n_cg_blocks == len(ch_size_list)
-        assert lmax_list is None or n_cg_blocks == len(lmax_list)
-        assert n_cg_blocks == len(ls_nonlin_rule_list)
-        assert n_cg_blocks == len(ch_nonlin_rule_list)
 
         if self.do_initial_linear_projection:
             print(irreps_in.dim, irreps_in)
-            initial_irreps = (ch_initial_linear_projection*o3.Irreps.spherical_harmonics(max(irreps_in.ls), 1)).sort().irreps.simplify()
+            initial_irreps = (self.ch_initial_linear_projection*o3.Irreps.spherical_harmonics(max(irreps_in.ls), 1)).sort().irreps.simplify()
             self.initial_linear_projection = nn.SO3_linearity(irreps_in, initial_irreps)
             print(initial_irreps.dim, initial_irreps)
         else:
@@ -79,12 +78,12 @@ class H_VAE(torch.nn.Module):
             initial_irreps = irreps_in
         
         # prepare lmaxs for both encoder and decoder blocks
-        lmaxs = [min(2**i, net_lmax) for i in range(n_cg_blocks)] + [max(initial_irreps.ls)]
+        lmaxs = [min(2**i, self.net_lmax) for i in range(self.n_cg_blocks)] + [max(initial_irreps.ls)]
         lmaxs_encoder_upper_bound = lmaxs[:-1][::-1] # exclude data irreps and reverse so it's decreasing
         lmaxs_decoder_upper_bound = lmaxs[1:] # exclude latent space irreps
-        if lmax_list is not None:
-            lmaxs_encoder = lmax_list
-            lmaxs_decoder = lmax_list[::-1][1:] + [max(initial_irreps.ls)]
+        if self.lmax_list is not None:
+            lmaxs_encoder = self.lmax_list
+            lmaxs_decoder = self.lmax_list[::-1][1:] + [max(initial_irreps.ls)]
 
             # the provided lmaxs must be such that they are not above the maximum
             # allowed by the bottleneck that goes down to lmax=1
@@ -97,23 +96,23 @@ class H_VAE(torch.nn.Module):
         ## encoder - cg
         prev_irreps = initial_irreps
         encoder_cg_blocks = []
-        for i in range(n_cg_blocks):
-            temp_irreps_hidden = (ch_size_list[i]*o3.Irreps.spherical_harmonics(lmaxs_encoder[i], 1)).sort().irreps.simplify()
+        for i in range(self.n_cg_blocks):
+            temp_irreps_hidden = (self.ch_size_list[i]*o3.Irreps.spherical_harmonics(lmaxs_encoder[i], 1)).sort().irreps.simplify()
             encoder_cg_blocks.append(nn.CGBlock(prev_irreps,
                                                 temp_irreps_hidden,
                                                 w3j_matrices,
-                                                linearity_first=linearity_first,
-                                                filter_symmetric=filter_symmetric,
+                                                linearity_first=self.linearity_first,
+                                                filter_symmetric=self.filter_symmetric,
                                                 use_batch_norm=self.use_batch_norm,
-                                                ls_nonlin_rule=ls_nonlin_rule_list[i], # full, elementwise, efficient
-                                                ch_nonlin_rule=ch_nonlin_rule_list[i], # full, elementwise
-                                                norm_type=norm_type, # None, layer, signal
-                                                normalization=normalization, # norm, component -> only if norm_type is not none
-                                                norm_balanced=norm_balanced,
-                                                norm_affine=norm_affine, # None, {True, False} -> for layer_norm, {unique, per_l, per_feature} -> for signal_norm
-                                                norm_nonlinearity=norm_nonlinearity, # None (identity), identity, relu, swish, sigmoid -> only for layer_norm
-                                                norm_location=norm_location, # first, between, last
-                                                weights_initializer=weights_initializer,
+                                                ls_nonlin_rule=self.ls_nonlin_rule_list[i], # full, elementwise, efficient
+                                                ch_nonlin_rule=self.ch_nonlin_rule_list[i], # full, elementwise
+                                                norm_type=self.norm_type, # None, layer, signal
+                                                normalization=self.normalization, # norm, component -> only if norm_type is not none
+                                                norm_balanced=self.norm_balanced,
+                                                norm_affine=self.norm_affine, # None, {True, False} -> for layer_norm, {unique, per_l, per_feature} -> for signal_norm
+                                                norm_nonlinearity=self.norm_nonlinearity, # None (identity), identity, relu, swish, sigmoid -> only for layer_norm
+                                                norm_location=self.norm_location, # first, between, last
+                                                weights_initializer=self.weights_initializer,
                                                 init_scale=1.0))
 
 
@@ -126,9 +125,9 @@ class H_VAE(torch.nn.Module):
         final_encoder_l1s = [mul for (mul, _) in prev_irreps][1] # number of channels for l = 1
 
         prev_dim = final_encoder_invariants
-        if bottleneck_hidden_dims is not None and len(bottleneck_hidden_dims) > 0:
+        if self.bottleneck_hidden_dims is not None and len(self.bottleneck_hidden_dims) > 0:
             encoder_bottleneck = []
-            for hidden_dim in bottleneck_hidden_dims:
+            for hidden_dim in self.bottleneck_hidden_dims:
                 encoder_bottleneck.append(torch.nn.Linear(prev_dim, hidden_dim))
                 encoder_bottleneck.append(torch.nn.ReLU())
                 prev_dim = hidden_dim
@@ -136,24 +135,23 @@ class H_VAE(torch.nn.Module):
         else:
             self.encoder_bottleneck = torch.nn.Identity() # for modularity purposes
 
-        self.encoder_mean = torch.nn.Linear(prev_dim, latent_dim)
+        self.encoder_mean = torch.nn.Linear(prev_dim, self.latent_dim)
         if self.is_vae:
-            self.encoder_log_var = torch.nn.Linear(prev_dim, latent_dim)
+            self.encoder_log_var = torch.nn.Linear(prev_dim, self.latent_dim)
 
         # component that learns the frame
-        self.learn_frame = learn_frame
-        if learn_frame:
+        if self.learn_frame:
             # take l=1 vectors (extract multiplicities) of last block and learn two l=1 vectors (x and pseudo-y direction)
             frame_learner_irreps_in = o3.Irreps('%dx1e' % final_encoder_l1s)
             frame_learner_irreps_out = o3.Irreps('2x1e')
             self.frame_learner = nn.SO3_linearity(frame_learner_irreps_in, frame_learner_irreps_out)
         
-        latent_irreps = o3.Irreps('%dx0e+3x1e' % (latent_dim))
+        latent_irreps = o3.Irreps('%dx0e+3x1e' % (self.latent_dim))
         print(latent_irreps.dim, latent_irreps)
 
-        prev_dim = latent_dim
-        if bottleneck_hidden_dims is not None and len(bottleneck_hidden_dims) > 0:
-            bottleneck_hidden_dims = bottleneck_hidden_dims[::-1] + [final_encoder_invariants]
+        prev_dim = self.latent_dim
+        if self.bottleneck_hidden_dims is not None and len(self.bottleneck_hidden_dims) > 0:
+            bottleneck_hidden_dims = self.bottleneck_hidden_dims[::-1] + [final_encoder_invariants]
             decoder_bottleneck = []
             for i, hidden_dim in enumerate(bottleneck_hidden_dims):
                 decoder_bottleneck.append(torch.nn.Linear(prev_dim, hidden_dim))
@@ -162,7 +160,7 @@ class H_VAE(torch.nn.Module):
                 prev_dim = hidden_dim
             self.decoder_bottleneck = torch.nn.Sequential(*decoder_bottleneck)
         else:
-            self.decoder_bottleneck = torch.nn.Linear(latent_dim, final_encoder_invariants)
+            self.decoder_bottleneck = torch.nn.Linear(self.latent_dim, final_encoder_invariants)
 
         l1_frame_irreps = o3.Irreps('3x1e')
         self.first_decoder_projection = nn.SO3_linearity(l1_frame_irreps, o3.Irreps('%dx1e' % final_encoder_l1s)) # project back to space of irreps at the end of the encoder (l1 only)
@@ -172,13 +170,13 @@ class H_VAE(torch.nn.Module):
         decoder_cg_blocks = []
         
         # ch_size_list = [ch_initial_linear_projection] + ch_size_list # add channels of initial irreps
-        ch_size_list = ch_size_list[::-1][1:] # reverse and exclude first channels because that's the input to the decoder
-        ls_nonlin_rule_list = ls_nonlin_rule_list[::-1]
-        ch_nonlin_rule_list = ch_nonlin_rule_list[::-1]
-        for i in range(n_cg_blocks):
-            if i == n_cg_blocks - 1:
+        ch_size_list = self.ch_size_list[::-1][1:] # reverse and exclude first channels because that's the input to the decoder
+        ls_nonlin_rule_list = self.ls_nonlin_rule_list[::-1]
+        ch_nonlin_rule_list = self.ch_nonlin_rule_list[::-1]
+        for i in range(self.n_cg_blocks):
+            if i == self.n_cg_blocks - 1:
                 if self.do_initial_linear_projection:
-                    temp_irreps_hidden = (ch_initial_linear_projection*o3.Irreps.spherical_harmonics(lmaxs_decoder[i], 1)).sort().irreps.simplify()
+                    temp_irreps_hidden = (self.ch_initial_linear_projection*o3.Irreps.spherical_harmonics(lmaxs_decoder[i], 1)).sort().irreps.simplify()
                 else:
                     temp_irreps_hidden = irreps_in
             else:
@@ -186,18 +184,18 @@ class H_VAE(torch.nn.Module):
             decoder_cg_blocks.append(nn.CGBlock(prev_irreps,
                                                 temp_irreps_hidden,
                                                 w3j_matrices,
-                                                linearity_first=linearity_first,
-                                                filter_symmetric=filter_symmetric,
+                                                linearity_first=self.linearity_first,
+                                                filter_symmetric=self.filter_symmetric,
                                                 use_batch_norm=self.use_batch_norm,
                                                 ls_nonlin_rule=ls_nonlin_rule_list[i], # full, elementwise, efficient
                                                 ch_nonlin_rule=ch_nonlin_rule_list[i], # full, elementwise
-                                                norm_type=norm_type, # None, layer, signal
-                                                normalization=normalization, # norm, component -> only if norm_type is not none
-                                                norm_balanced=norm_balanced,
-                                                norm_affine=norm_affine, # None, {True, False} -> for layer_norm, {unique, per_l, per_feature} -> for signal_norm
-                                                norm_nonlinearity=norm_nonlinearity, # None (identity), identity, relu, swish, sigmoid -> only for layer_norm
-                                                norm_location=norm_location, # first, between, last
-                                                weights_initializer=weights_initializer,
+                                                norm_type=self.norm_type, # None, layer, signal
+                                                normalization=self.normalization, # norm, component -> only if norm_type is not none
+                                                norm_balanced=self.norm_balanced,
+                                                norm_affine=self.norm_affine, # None, {True, False} -> for layer_norm, {unique, per_l, per_feature} -> for signal_norm
+                                                norm_nonlinearity=self.norm_nonlinearity, # None (identity), identity, relu, swish, sigmoid -> only for layer_norm
+                                                norm_location=self.norm_location, # first, between, last
+                                                weights_initializer=self.weights_initializer,
                                                 init_scale=1.0))
 
             # prev_irreps = decoder_cg_blocks[-1].irreps_out
@@ -207,7 +205,7 @@ class H_VAE(torch.nn.Module):
         self.decoder_cg_blocks = torch.nn.ModuleList(decoder_cg_blocks)
 
         if self.do_initial_linear_projection: # final linear projection
-            initial_irreps = (ch_initial_linear_projection*o3.Irreps.spherical_harmonics(max(irreps_in.ls), 1)).sort().irreps.simplify()
+            initial_irreps = (self.ch_initial_linear_projection*o3.Irreps.spherical_harmonics(max(irreps_in.ls), 1)).sort().irreps.simplify()
             self.final_linear_projection = nn.SO3_linearity(initial_irreps, irreps_in)
             print(irreps_in.dim, irreps_in)
 
@@ -215,11 +213,9 @@ class H_VAE(torch.nn.Module):
             self.final_signal_norm = torch.nn.Sequential(nn.signal_norm(irreps_in, normalization='component', affine=None))
 
         ## setup reconstruction loss functions
-        self.signal_rec_loss = eval(nn.NAME_TO_LOSS_FN[x_rec_loss_fn])(irreps_in, self.device)
+        self.signal_rec_loss = eval(nn.NAME_TO_LOSS_FN[self.x_rec_loss_fn])(irreps_in, self.device)
     
-    # @profile
     def encode(self, x: Tensor):
-        # print('---------------------- In encoder ----------------------', file=sys.stderr)
 
         if self.do_initial_linear_projection:
             h = self.initial_linear_projection(x)
@@ -254,12 +250,10 @@ class H_VAE(torch.nn.Module):
         else:
             learned_frame = None
 
-        # print('---------------------- Out of encoder ----------------------', file=sys.stderr)
         return (z_mean, z_log_var), None, learned_frame
     
     # @profile
     def decode(self, z: Tensor, frame: Tensor):
-        # print('---------------------- In decoder ----------------------', file=sys.stderr)
 
         h = self.first_decoder_projection({1: frame})
         h[0] = self.decoder_bottleneck(z).unsqueeze(-1)
@@ -283,11 +277,9 @@ class H_VAE(torch.nn.Module):
 
         if self.do_final_signal_norm:
             x_reconst = self.final_signal_norm(x_reconst)
-        # print('---------------------- Out of decoder ----------------------', file=sys.stderr)
 
         return x_reconst, None
 
-    # @profile
     def forward(self, x: Dict[int, Tensor], x_vec: Optional[Tensor] = None, frame: Optional[Tensor] = None):
         '''
         Note: this function is independent of the choice of probability distribution for the latent space,

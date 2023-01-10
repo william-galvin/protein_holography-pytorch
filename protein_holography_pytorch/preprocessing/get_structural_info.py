@@ -8,7 +8,10 @@ from typing import List,Tuple
 
 import h5py
 import numpy as np
+
+## LOCAL ABSOLUTE PYROSETTA PATH
 sys.path.append('/gscratch/spe/gvisan01/PyRosetta4.Release.python39.linux.release-335')
+
 import pyrosetta
 from pyrosetta.toolbox.extract_coords_pose import pose_coords_as_rows
 from pyrosetta.rosetta.core.pose import Pose
@@ -37,7 +40,7 @@ def get_structural_info(pdb_filepath: str,
             ('pdb','S4',()),
             ('atom_names', 'S4', (max_atoms)),
             ('elements', 'S1', (max_atoms)),
-            ('res_ids', 'S5', (max_atoms, 6)),
+            ('res_ids', 'S6', (max_atoms, 6)),
             ('coords', 'f8', (max_atoms, 3)),
             ('SASAs', 'f8', (max_atoms)),
             ('charges', 'f8', (max_atoms)),
