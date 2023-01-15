@@ -66,6 +66,7 @@ if __name__ == "__main__":
         ('coords', 'f8', (max_atoms, 3)),
         ('SASAs', 'f8', (max_atoms)),
         ('charges', 'f8', (max_atoms)),
+        ('angles', 'f8', (max_atoms, 4)),
     ])
     with h5py.File(args.hdf5_out,'w') as f:
         f.create_dataset(args.dataset_name,
@@ -82,12 +83,12 @@ if __name__ == "__main__":
                     bar.next()
                     n+=1
                     continue
-                pdb,atom_names,elements,res_ids,coords,sasas,charges = (*structural_info,)
+                pdb,atom_names,elements,res_ids,coords,sasas,charges,angles = (*structural_info,)
                 #print(pdb)
                 #print(max_atoms - np.sum(atom_names == b''),'atoms in array')
                 #print('wrting to hdf5')
                 try:
-                    f[args.pdb_list][i] = (pdb,atom_names,elements,res_ids,coords,sasas,charges)
+                    f[args.pdb_list][i] = (pdb,atom_names,elements,res_ids,coords,sasas,charges,angles)
                     #print('success')
                 except Exception as e:
                     print(e)

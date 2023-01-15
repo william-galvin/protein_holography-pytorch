@@ -44,6 +44,7 @@ def get_structural_info(pdb_filepath: str,
             ('coords', 'f8', (max_atoms, 3)),
             ('SASAs', 'f8', (max_atoms)),
             ('charges', 'f8', (max_atoms)),
+            ('angles', 'f8', (max_atoms, 4)),
         ])
     np_protein = np.zeros(shape=(1),dtype=dt) 
 
@@ -199,6 +200,7 @@ def get_structural_info_from_protein(pose : Pose) -> Tuple[
     coords = []
     charges = []
     res_ids = []
+    angles = []
     
     k = 0
     
@@ -226,15 +228,16 @@ def get_structural_info_from_protein(pose : Pose) -> Tuple[
         ## optional info to include in residue ids if analysis merits it
         ## - hbond info
         ## - chi1 angle
-        #hbond_set = pose.get_hbonds()
-        #chi1 = b''
-        #print(aa)
-        #if aa not in ['G','A','Z']:
-        #    try:
-        #        chi1 = str(pose.chi(1,i)).encode()
-        #    except:
-        #        print(pdb,aa,chain,resnum)
-        #        #print(chi1)
+        # hbond_set = pose.get_hbonds()
+        # chi1 = b''
+        chis = np.empty(4, dtype=float)
+        if aa not in ['G','A','Z']:
+            num_angles = pose.residue_type(i).nchi()
+            for chi_num in range(1, num_angles):
+                chi = str(pose.chi(chi_num,i)).encode()
+                chis[chi_num - 1] = chi  
+            # this leaves the angles not present in the resdiue as 0    
+        angles.append(chis)
         
         for j in range(1,len(pose.residue(i).atoms())+1):
 
@@ -273,8 +276,9 @@ def get_structural_info_from_protein(pose : Pose) -> Tuple[
     coords = np.array(coords)
     charges = np.array(charges)
     res_ids = np.array(res_ids)
+    angles = np.array(angles)
     
-    return pdb,(atom_names,elements,res_ids,coords,sasas,charges)
+    return pdb,(atom_names,elements,res_ids,coords,sasas,charges, angles)
 
 # given a matrix, pad it with empty array
 def pad(

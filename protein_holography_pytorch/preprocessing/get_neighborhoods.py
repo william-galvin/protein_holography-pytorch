@@ -22,11 +22,13 @@ def get_neighborhoods(np_protein: np.array,
         ('coords', 'f8', (max_atoms, 3)),
         ('SASAs', 'f8', (max_atoms)),
         ('charges', 'f8', (max_atoms)),
+        ('angles', 'f8', (max_atoms, 4)),
     ])
 
     nbs = get_padded_neighborhoods(np_protein, r=r, remove_central_residue=remove_central_residue, backbone_only=backbone_only, padded_length=max_atoms)
     
     np_neighborhoods = np.zeros(shape=(len(nbs),), dtype=dt) 
+
     for i, nb in enumerate(nbs):
         np_neighborhoods[i] = (*nb,)
 
@@ -66,7 +68,7 @@ def get_neighborhoods_from_protein(np_protein, r=10.0, remove_central_residue=Tr
     
     get_neighbors_custom = partial(
         get_neighbors,                          
-        npProtein = [np_protein[x] for x in range(1,7)]
+        npProtein = [np_protein[x] for x in range(1,8)]
     )
 
     res_ids = np_protein['res_ids'][real_locs]
@@ -148,7 +150,7 @@ def pad_neighborhoods(
     for i,neighborhood in enumerate(neighborhoods):
         padded_neighborhoods.append(
             pad_neighborhood(
-                [neighborhood[i] for i in range(1,7)],
+                [neighborhood[i] for i in range(1,8)],
                 padded_length=padded_length
             )
         )

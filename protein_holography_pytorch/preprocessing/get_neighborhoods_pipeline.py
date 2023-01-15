@@ -67,6 +67,7 @@ if __name__ == "__main__":
         ('coords', 'f8', (max_atoms, 3)),
         ('SASAs', 'f8', (max_atoms)),
         ('charges', 'f8', (max_atoms)),
+        ('angles', 'f8', (max_atoms, 4)),
     ])
     print(dt)
     print('writing hdf5 file')

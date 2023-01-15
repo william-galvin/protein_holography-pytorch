@@ -5,20 +5,19 @@ Summary: learning protein neighborhoods by incorporating rotational symmetry - p
 Home-page: https://github.com/StatPhysBio/protein_holography-pytorch
 Author: Michael Pun
 Author-email: gvisan01@.cs.washington.edu
-License: UNKNOWN
-Platform: UNKNOWN
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 License-File: LICENSE
 
 # protein_holography-pytorch
 
+REPOSITORY IN PROGRESS
+
 Notes:
-- Remember to note the e3nn version of the data, the CG coefficients, and the models because different versions of e3nn use different CG coefficients (and possibly then also different real spherical harmonics? unsure about this though)
+- Remember to note the e3nn version of the data, the CG coefficients, and the models because different versions of e3nn use different CG coefficients
 
 TODO:
 1. Make setup script that downloads CG coefficients from e3nn and notes the e3nn version
-2. Make 
-
+2. Make it so that user can specify path where pyrosetta is instead of using static global variable
 
 

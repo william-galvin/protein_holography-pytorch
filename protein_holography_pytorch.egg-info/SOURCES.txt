@@ -10,8 +10,9 @@ protein_holography_pytorch/cg_coefficients/__init__.py
 protein_holography_pytorch/cg_coefficients/get_w3j_coefficients.py
 protein_holography_pytorch/models/__init__.py
 protein_holography_pytorch/models/cgnet.py
-protein_holography_pytorch/models/hvae.py
-protein_holography_pytorch/models/hvae_mlp_decoder.py
+protein_holography_pytorch/models/h_unet.py
+protein_holography_pytorch/models/h_vae.py
+protein_holography_pytorch/models/h_vae_mlp_decoder.py
 protein_holography_pytorch/models/so3_convnet.py
 protein_holography_pytorch/nn/__init__.py
 protein_holography_pytorch/nn/activations.py
@@ -21,6 +22,14 @@ protein_holography_pytorch/nn/loss_functions.py
 protein_holography_pytorch/nn/nonlinearity.py
 protein_holography_pytorch/nn/normalization.py
 protein_holography_pytorch/nn/tensor_product.py
+protein_holography_pytorch/preprocessing/__init__.py
+protein_holography_pytorch/preprocessing/get_neighborhoods.py
+protein_holography_pytorch/preprocessing/get_neighborhoods_pipeline.py
+protein_holography_pytorch/preprocessing/get_structural_info.py
+protein_holography_pytorch/preprocessing/get_structural_info_pipeline.py
+protein_holography_pytorch/preprocessing/get_zernikegrams.py
+protein_holography_pytorch/preprocessing/preprocessor_hdf5_proteins.py
+protein_holography_pytorch/preprocessing/preprocessor_pdbs.py
 protein_holography_pytorch/so3/__init__.py
 protein_holography_pytorch/so3/functional.py
 protein_holography_pytorch/so3/orthonormal_radial_basis.py

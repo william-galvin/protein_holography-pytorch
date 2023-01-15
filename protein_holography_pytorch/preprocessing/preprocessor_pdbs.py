@@ -21,7 +21,7 @@ pyrosetta.init(init_flags)
 def process_data_dir(pdb,pdb_dir):
     assert(process_data_dir.callback)
 
-    pdb = pdb.decode('utf-8')
+    # pdb = pdb.decode('utf-8')
 
     pdb_file = pdb_dir + pdb + '.pdb'
     try:
