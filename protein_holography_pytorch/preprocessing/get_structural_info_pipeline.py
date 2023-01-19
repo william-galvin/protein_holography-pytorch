@@ -88,7 +88,7 @@ if __name__ == "__main__":
                 #print(max_atoms - np.sum(atom_names == b''),'atoms in array')
                 #print('wrting to hdf5')
                 try:
-                    f[args.pdb_list][i] = (pdb,atom_names,elements,res_ids,coords,sasas,charges,angles)
+                    f[args.dataset_name][i] = (pdb,atom_names,elements,res_ids,coords,sasas,charges,angles)
                     #print('success')
                 except Exception as e:
                     print(e)
