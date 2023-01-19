@@ -56,7 +56,7 @@ if __name__ == "__main__":
         filter_AAs = set(args.AAs.split(','))
         
     logging.basicConfig(level=logging.DEBUG)
-    ds = PDBPreprocessor(args.input_hdf5, args.input_key)
+    ds = PDBPreprocessor(args.input_hdf5, args.dataset_name)
 
     max_atoms = 1000
     dt = np.dtype([
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     curr_size = 1000
     with h5py.File(args.output_hdf5, 'w') as f:
         # Initialize dataset
-        f.create_dataset(args.input_key,
+        f.create_dataset(args.dataset_name,
                          shape=(curr_size,),
                          maxshape=(None,),
                          dtype=dt)
@@ -100,17 +100,17 @@ if __name__ == "__main__":
 
                     if n == curr_size:
                         curr_size += 1000
-                        f[args.input_key].resize((curr_size,))
+                        f[args.dataset_name].resize((curr_size,))
                     
                     # only add neighborhoods of desired AA types
                     if neighborhood[0][0].decode('utf-8') in filter_AAs:
-                        f[args.input_key][n] = (*neighborhood,)
+                        f[args.dataset_name][n] = (*neighborhood,)
                         n += 1
                 
                 bar.next()
 
             # finally, resize dataset to be of needed shape to exactly contain the data and nothing more
-            f[args.input_key].resize((n,))
+            f[args.dataset_name].resize((n,))
         
     print('%d total neighborhoods saved.' % (n))
     
